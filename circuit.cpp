@@ -44,6 +44,10 @@ Circuit::Circuit(const std::string& filePath) {
         }
 
         inFile >> type;
+
+        if (type == "AND") {
+            numberOfANDs++;
+        }
         gates.emplace_back(Circuit::gate{
             type,
             gateInput[0],
@@ -61,4 +65,8 @@ std::vector<Circuit::gate> Circuit::getGates() {
 
 std::vector<bool> Circuit::getWires() {
     return wires;
+}
+
+int Circuit::getNumberOfANDs(){
+    return numberOfANDs;
 }
