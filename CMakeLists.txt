@@ -3,4 +3,4 @@ project(Cryptographic_computing)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(Cryptographic_computing main.cpp circuit.cpp circuit.h)
+add_executable(Cryptographic_computing main.cpp circuit.cpp circuit.h subprotocols.h party.h party.cpp)
