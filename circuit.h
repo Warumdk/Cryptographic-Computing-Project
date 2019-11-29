@@ -20,9 +20,11 @@ public:
     };
     std::vector<bool> getWires();
     std::vector<gate> getGates();
+    int getNumberOfANDs();
 private:
     std::vector<bool> wires;
     std::vector<gate> gates;
+    int numberOfANDs;
 };
 
 
