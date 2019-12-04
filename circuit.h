@@ -1,10 +1,7 @@
 //
 // Created by Laurits on 10-11-2019.
 //
-
-#ifndef CRYPTOGRAPHIC_COMPUTING_CIRCUIT_H
-#define CRYPTOGRAPHIC_COMPUTING_CIRCUIT_H
-
+#pragma once
 #include <iostream>
 #include <vector>
 
@@ -26,6 +23,3 @@ private:
     std::vector<gate> gates;
     int numberOfANDs;
 };
-
-
-#endif //CRYPTOGRAPHIC_COMPUTING_CIRCUIT_H
