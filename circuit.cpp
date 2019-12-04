@@ -11,7 +11,7 @@ Circuit::Circuit(const std::string& filePath) {
     inFile.open(filePath);
     numberOfANDs = 0;
     if(!inFile){
-        std::cerr << "Unable to open file" << filePath << std::endl;
+        std::cerr << "Unable to open file " << filePath << std::endl;
         exit(1);
     }
 

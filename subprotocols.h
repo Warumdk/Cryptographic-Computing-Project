@@ -3,7 +3,7 @@
 //
 #pragma once
 #include <vector>
-#include <pair>
+#include <utility>
 
 // Til at include alle subprotocol headers I guess
 
@@ -12,13 +12,13 @@
 
 // Det er til diskussion om vi skal lade mail kalde subprotokollerne, som så får de tre parties med? (eller i hvert fald kalder parties herfra).
 
-std::pair<bool, bool> fRand();
-std::vector<bool> fCoin();  // nok return vector af v_1, ... , v_s i stedet for void
+static std::pair<bool, bool> fRand();
+static std::vector<bool> fCoin();  // nok return vector af v_1, ... , v_s i stedet for void
 // void compareview()  --> ved ikke om denne metode skal holdes af parties
-std::vector<bool> fPerm();
-int fReconst();
-int fShare();
-int triVerifyWithOpen();
-int triVerifyWithoutOpen();
-std::vector<bool> fTriples(int N);
+static std::vector<bool> fPerm();
+static int fReconst();
+static int fShare();
+static int triVerifyWithOpen();
+static int triVerifyWithoutOpen();
+static std::vector<bool> fTriples(int N);
 //TODO: securelyCompute();
