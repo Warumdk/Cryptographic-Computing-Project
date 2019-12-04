@@ -12,11 +12,10 @@ std::vector<bool> intToBoolVector(__int128 in, int bits){
 
 __int128_t boolVectorToInt(std::vector<bool> in, int bits){
     __int128_t out = 0;
-    for (int i = bits-1; i > 0; --i) {
-        if(in.back()) {
+    for (int i = bits-1; i >= 0; --i) {
+        if(in.at(i)) {
             out |= 1 << i;
         }
-        in.pop_back();
     }
     return out;
 }
@@ -49,10 +48,12 @@ void test64BitAdderLocally(int64_t in1, int64_t in2){
     }
 
     std::vector<bool> result(wires.end() - 64, wires.end());
-    std::cout <<  (int64_t) boolVectorToInt(result, 64) << std::endl;
+
+    // Cannot currently print 128bit ints that is why the 64bit cast is there
+    std::cout <<  (int64_t) boolVectorToInt(result, 32) << std::endl;
 }
 
 int main() {
-   test64BitAdderLocally(5001, 201331);
+   test64BitAdderLocally(500, 410);
 }
 
