@@ -12,6 +12,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <thread>
 
 
 //Generate key by init new SecByteBlock and use it as first argument to AutoSeededRandomPool.GenerateBlock
@@ -33,7 +34,7 @@ public:
     };
 
     //TODO: proper constructor signature
-    Party(int noOfAndGates, inArgs args, Circuit circuit);
+    Party(std::string partyNo, int noOfAndGates, inArgs args, Circuit* circuit);
 
     //TODO: parametre er placeholders (ved ikke helt hvad de tager endnu)
 
@@ -49,6 +50,7 @@ public:
     std::pair<bool, bool> rand();
     std::vector<bool> coin(int bits);
     std::vector<triple> perm(std::vector<triple> d);
+    void evaluateCircuit();
 
 
 private:
@@ -59,7 +61,10 @@ private:
     CryptoPP::SecByteBlock iv;
     CryptoPP::SecByteBlock key;
     CryptoPP::SecByteBlock correlatedKey;
-    std::string id;
+    std::string id, partyNo;
     inArgs args;
+    int noOfAndGates;
+    Circuit* circuit;
+    int ivIter;
 
 };
