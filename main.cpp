@@ -5,6 +5,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <ctime>
+#include <cstdlib>
 
 std::vector<bool> intToBoolVector(__int128 in, int bits){
     std::vector<bool> temp;
@@ -64,21 +66,34 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
     p3.receive(p2.send());
 }
 
-
 int main() {
-    auto *circuit = new Circuit("adder64.txt");
-    std::queue<bool> p1p2Queue, p2p3Queue, p3p1Queue;
+
+    auto *circuit = new Circuit("zero_equal.txt");
+    std::queue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     std::mutex  p1p2Mtx, p2p3Mtx, p3p1Mtx;
     std::condition_variable p1p2Cv, p2p3Cv, p3p1Cv;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
 
-    Party::inArgs args1 = {&p3p1Queue, &p1p2Queue, &p3p1Mtx, &p1p2Mtx, &p3p1Cv, &p1p2Cv};
-    Party::inArgs args2 = {&p1p2Queue, &p2p3Queue, &p1p2Mtx, &p2p3Mtx, &p1p2Cv, &p2p3Cv};
-    Party::inArgs args3 = {&p2p3Queue, &p3p1Queue, &p2p3Mtx, &p3p1Mtx, &p2p3Cv, &p3p1Cv};
+    Party::inArgs args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue,  &p3p1Mtx, &p1p2Mtx, &p3p1Cv, &p1p2Cv};
+    Party::inArgs args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue, &p1p2Mtx, &p2p3Mtx, &p1p2Cv, &p2p3Cv};
+    Party::inArgs args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue, &p2p3Mtx, &p3p1Mtx, &p2p3Cv, &p3p1Cv};
 
-    Party p1("p1", circuit->getNumberOfANDs(), args1, circuit);
-    Party p2("p2", circuit->getNumberOfANDs(), args2, circuit);
-    Party p3("p3", circuit->getNumberOfANDs(), args3, circuit);
+
+    std::vector<std::pair<bool, bool>> wireShares1(64);
+    std::vector<std::pair<bool, bool>> wireShares2(64);
+    std::vector<std::pair<bool, bool>> wireShares3(64);
+     /*
+    srand(time(0));
+    for (int i = 0; i < 64; ++i) {
+        wireShares1.push_back({rand() % 2, rand()% 2});
+        wireShares2.push_back({rand() % 2, rand()% 2});
+        wireShares3.push_back({rand() % 2, rand()% 2});
+
+    }*/
+
+    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, wireShares1);
+    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, wireShares2);
+    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, wireShares3);
 
     //Share keys
     fcrSetup(p1, p2, p3);
@@ -91,5 +106,4 @@ int main() {
     t1.join();
     t2.join();
     t3.join();
-
 }

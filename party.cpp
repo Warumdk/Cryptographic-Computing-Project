@@ -5,8 +5,12 @@
 #include "party.h"
 #include <math.h>
 #include <ctime>
+#include <exception>
 
-Party::Party(std::string partyNo, int noOfAndGates, inArgs args, Circuit* circuit) {
+Party::Party(int partyNo, int noOfAndGates, inArgs args, Circuit* circuit, std::vector<std::pair<bool, bool>> test) {
+
+    Party::testShares = test;
+
     Party::partyNo = partyNo;
     Party::ivIter = 1;
     Party::circuit = circuit;
@@ -22,13 +26,15 @@ Party::Party(std::string partyNo, int noOfAndGates, inArgs args, Circuit* circui
 
 void Party::evaluateCircuit(){
 
-    std::vector<bool> tmpres = coin(5);
+    reconstruct(0, {true, true});
+
+    /*
+    std::vector<bool> tmpres = coin(8);
     for (const auto &res : tmpres){
         std::printf("%d ", (bool) res);
     }
     std::printf("\n");
 
-    /*
     Circuit circuittmp = *Party::circuit;
     auto gates = circuittmp.getGates();
     auto wires = circuittmp.getWires();
@@ -49,13 +55,13 @@ void Party::evaluateCircuit(){
             wireShares[gate.output] = {wireShares[gate.inputA].first, wireShares[gate.inputA].second};
         }
     }
-    std::vector<std::pair<bool, bool>> result(wireShares.end() - 64, wireShares.end());
-    std::vector<bool> finalOutput(64);
+    std::vector<std::pair<bool, bool>> result(wireShares.end() - 1, wireShares.end()); //TODO: exchange -1 with number of output wires
+    std::vector<bool> finalOutput(1);
     for (auto &res : result){
         //finalOutput.emplace_back(open(res));
         std::printf("%d\n", (bool) open(res));
     }
-     */
+    */
 
 }
 
@@ -68,8 +74,51 @@ void Party::receive(const CryptoPP::SecByteBlock correlatedKey){
     Party::correlatedKey = correlatedKey;
 }
 
-bool Party::sendToNext(bool share){
+void Party::sendToParty(int pid, bool v){
+    std::mutex *outMtx;
+    std::condition_variable *outCv;
+    if(pid == (partyNo + 1) % 3){
+        Party::out = args.outgoing;
+        outMtx = args.outMtx;
+        outCv = args.outCv;
 
+    } else if (pid == ((3 + partyNo - 1) % 3)) {
+        Party::out = args.outgoingPrevious;
+        outMtx = args.inMtx;
+        outCv = args.inCv;
+    }
+    std::unique_lock<std::mutex> lockOut(*outMtx);
+    outCv->wait(lockOut, [this]() {return Party::out->size() < 1;}); //wait if element not taken
+    out->push(v);
+    lockOut.unlock();
+    outCv->notify_one();
+}
+
+bool Party::receiveFromParty(int pid){
+    std::mutex *inMtx;
+    std::condition_variable *inCv;
+    if(pid == (partyNo + 1) % 3){
+        Party::in = args.ingoingNext;
+        inMtx = args.outMtx;
+        inCv = args.outCv;
+    } else if (pid == ((3 + partyNo - 1) % 3)) {
+        Party::in = args.ingoing;
+        inMtx = args.inMtx;
+        inCv = args.inCv;
+    }
+    std::unique_lock<std::mutex> lockIn(*inMtx);
+    inCv->wait(lockIn, [this]() {return !(in->empty());}); // wait until not empty
+    bool tFromPreviousParty = in->front();
+    in->pop();
+    lockIn.unlock();
+    inCv->notify_one();
+    return tFromPreviousParty;
+}
+
+bool Party::sendToNext(bool share){
+    sendToParty((partyNo + 1)% 3 , share);
+    bool tFromPreviousParty = receiveFromParty((3 + partyNo - 1) % 3);
+    /*
     std::unique_lock<std::mutex> lockOut(*args.outMtx);
     args.outCv->wait(lockOut, [this]() {return args.outgoing->size() < 1;}); //wait if element not taken
     args.outgoing->push(share);
@@ -82,6 +131,7 @@ bool Party::sendToNext(bool share){
     args.ingoing->pop();
     lockIn.unlock();
     args.inCv->notify_one();
+     */
     return tFromPreviousParty;
 }
 
@@ -159,9 +209,12 @@ std::vector<bool> Party::coin(int bits){
     std::vector<bool> v;
 
     for (const auto &share : vShare) {
-        v.emplace_back(open(share));
+        bool secret = open(share);
+        v.emplace_back(secret);
+        if (!compareView(secret)){
+            throw "ABORT. Coins does not match.";
+        }
     }
-    //TODO compareView()
     return v;
 }
 
@@ -176,4 +229,74 @@ std::vector<Party::triple> Party::perm(std::vector<triple> d){
     }
     return d;
 }
+/**
+ * Reconstructs a secret to party pid from the parties' shares.
+ * @param pid : the ID of the player to reconstruct the share to
+ * @param share : The shares of the value to be reconstructed
+ * @return : A pair of int, bool where:
+ *          int=0 indicates the player is the receiver of the reconstruction.
+ *          int=1 indicates the player is a sender (and thus the value can be ignored)
+ *          exception indicates an abort.
+ */
+std::pair<int, bool> Party::reconstruct(int pid, std::pair<bool, bool> share){
+    if (pid != Party::partyNo){
+        sendToParty(pid, share.first);
+        return {1, false};
+    } else {
+        bool tNext = receiveFromParty((Party::partyNo + 1) % 3);
+        bool tPrevious = receiveFromParty((3 + Party::partyNo - 1) % 3);
+        if (share.first == (tNext ^ tPrevious)){
+            return {0, share.second ^ tPrevious};
+        } else {
+            throw "ABORT. Reconstruction failed. Shares do not match.";
+        }
+    }
+}
+
+/**
+ * @param val : The value to be compare
+ * @return : True if the value received from previous party is the same as the one sent to the next party.
+ */
+bool Party::compareView(bool val){
+    bool receivedVal = sendToNext(val);
+    return val == receivedVal;
+}
+
+/**
+ * Robust sharing of a secret. Party pid shares a bool with the other two parties by giving them the correct shares.
+ * @param pid : The ID of the party who is sharing (i.e. the Dealer).
+ * @param v : The value (bool/bit) to be shared.
+ * @return : Returns the share of the shared secret.
+ */
+std::pair<bool, bool> Party::shareSecret(int pid, bool v){
+    std::pair<bool, bool> aShare = rand();
+    std::pair<int, bool> a = reconstruct(pid, aShare);
+    bool b;
+    if (a.first == 0){ //I am the one who shares
+        b = a.second ^ v;
+        sendToParty((pid + 1) % 3, b);
+        sendToParty((3 + (pid - 1)) % 3, b);
+    } else {
+        b = receiveFromParty(pid);
+    }
+    if (!compareView(b)){
+        throw "ABORT. Failed to share secret. Shares not consistent.";
+    }
+    return  {a.first, a.second ^ b}; // XOR by constant
+}
+/**
+ * Verifies a triple by opening them.
+ * @param t : The triple to verify.
+ * @return : True if the triple is correct, else false (notice this does not throw an exception).
+ */
+bool Party::verifyTripleWithOpening(Party::triple t){
+    bool a = open(t.a);
+    bool b = open(t.b);
+    bool c = open(t.c);
+    return c == (a & b);
+}
+
+
+
+
 
