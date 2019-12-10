@@ -9,8 +9,9 @@
 Circuit::Circuit(const std::string& filePath) {
     std::ifstream inFile;
     inFile.open(filePath);
+    numberOfANDs = 0;
     if(!inFile){
-        std::cerr << "Unable to open file" << filePath << std::endl;
+        std::cerr << "Unable to open file " << filePath << std::endl;
         exit(1);
     }
 
@@ -48,6 +49,7 @@ Circuit::Circuit(const std::string& filePath) {
         if (type == "AND") {
             numberOfANDs++;
         }
+
         gates.emplace_back(Circuit::gate{
             type,
             gateInput[0],
@@ -67,6 +69,6 @@ std::vector<bool> Circuit::getWires() {
     return wires;
 }
 
-int Circuit::getNumberOfANDs(){
+int Circuit::getNumberOfANDs() {
     return numberOfANDs;
 }

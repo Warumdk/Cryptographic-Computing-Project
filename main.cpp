@@ -1,5 +1,12 @@
 #include <iostream>
 #include "circuit.h"
+#include "party.h"
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <ctime>
+#include <cstdlib>
 
 std::vector<bool> intToBoolVector(__int128 in, int bits){
     std::vector<bool> temp;
@@ -12,11 +19,10 @@ std::vector<bool> intToBoolVector(__int128 in, int bits){
 
 __int128_t boolVectorToInt(std::vector<bool> in, int bits){
     __int128_t out = 0;
-    for (int i = bits-1; i > 0; --i) {
-        if(in.back()) {
+    for (int i = bits-1; i >= 0; --i) {
+        if(in.at(i)) {
             out |= 1 << i;
         }
-        in.pop_back();
     }
     return out;
 }
@@ -49,10 +55,56 @@ void test64BitAdderLocally(int64_t in1, int64_t in2){
     }
 
     std::vector<bool> result(wires.end() - 64, wires.end());
-    std::cout <<  (int64_t) boolVectorToInt(result, 64) << std::endl;
+
+    // Cannot currently print 128bit ints that is why the 64bit cast is there
+    std::cout <<  (int64_t) boolVectorToInt(result, 32) << std::endl;
+}
+
+void fcrSetup(Party &p1, Party &p2, Party &p3){
+    p1.receive(p3.send());
+    p2.receive(p1.send());
+    p3.receive(p2.send());
 }
 
 int main() {
-   test64BitAdderLocally(5001, 201331);
-}
+    auto *circuit = new Circuit("zero_equal.txt");
+    std::queue<std::pair<bool, int>> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
+    std::mutex  p1p2Mtx, p2p3Mtx, p3p1Mtx;
+    std::condition_variable p1p2Cv, p2p3Cv, p3p1Cv;
+    //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
 
+    Party::inArgs args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue,  &p3p1Mtx, &p1p2Mtx, &p3p1Cv, &p1p2Cv};
+    Party::inArgs args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue, &p1p2Mtx, &p2p3Mtx, &p1p2Cv, &p2p3Cv};
+    Party::inArgs args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue, &p2p3Mtx, &p3p1Mtx, &p2p3Cv, &p3p1Cv};
+
+
+    std::vector<std::pair<bool, bool>> wireShares1(64);
+    std::vector<std::pair<bool, bool>> wireShares2(64);
+    std::vector<std::pair<bool, bool>> wireShares3(64);
+
+    /*
+    srand(time(0));
+    for (int i = 0; i < 64; ++i) {
+        wireShares1.push_back({rand() % 2, rand()% 2});
+        wireShares2.push_back({rand() % 2, rand()% 2});
+        wireShares3.push_back({rand() % 2, rand()% 2});
+
+    }
+     */
+
+    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, wireShares1);
+    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, wireShares2);
+    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, wireShares3);
+
+    //Share keys
+    fcrSetup(p1, p2, p3);
+
+
+    std::thread t1(&Party::evaluateCircuit, &p1);
+    std::thread t2(&Party::evaluateCircuit, &p2);
+    std::thread t3(&Party::evaluateCircuit, &p3);
+
+    t1.join();
+    t2.join();
+    t3.join();
+}
