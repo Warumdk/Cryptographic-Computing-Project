@@ -43,7 +43,7 @@ void Party::evaluateCircuit() {
     file.close();
     */
 
-    Party::noOfAndGates = 1024;
+    Party::noOfAndGates = 100;
     try {
         generateTriples();
 
@@ -163,8 +163,8 @@ std::pair<bool, bool> Party::cr2() {
     Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
     Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
 
-    bool lastBit = (*cipher.BytePtr()) & 1u; // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1u; //TODO Fix so it is viable for larger circuits.
+    bool lastBit = (*cipher.BytePtr()) & 1; // Use ivIter to take the next bit in every call.
+    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1; //TODO Fix so it is viable for larger circuits.
     return {lastBitPrevious, lastBit};
 }
 
@@ -184,7 +184,7 @@ std::pair<bool, bool> Party::secMultAnd(std::pair<bool, bool> v, std::pair<bool,
     bool r = (v.first & u.first) ^ (v.second & u.second) ^ cr1();
     bool rPrevious = Party::sendToNext(r, -1).first;
     bool e = r ^rPrevious;
-    return {e, r};
+    return std::make_pair(e, r);
 }
 
 /**
@@ -194,7 +194,7 @@ std::pair<bool, bool> Party::secMultAnd(std::pair<bool, bool> v, std::pair<bool,
 std::pair<bool, bool> Party::rand() {
     std::pair<bool, bool> cr = cr2();
     bool t = cr.first ^cr.second;
-    return {t, cr.second};
+    return std::make_pair(t, cr.second);
 }
 
 /**
@@ -203,26 +203,22 @@ std::pair<bool, bool> Party::rand() {
  * @return : the vector of randomly generated bits.
  */
 std::vector<bool> Party::coin(int bits) {
-    std::vector<std::pair<bool, bool>> vShare;
+    std::vector<std::pair<bool, bool>> vShare(bits);
     for (int i = 0; i < bits; ++i) {
         vShare.emplace_back(rand());
     }
-    std::vector<bool> v(bits);
+    bool v[bits];
 
     for (int j = 0; j < bits; ++j) {
         std::pair<bool, int> secret = open(vShare[j], j);
         v[secret.second] = secret.first;
     }
-
-    if (!in->empty()) {
-        std::cout << "waa" << std::endl;
-        usleep(200);
-    }
-
-    if (!compareView(v)) {
+    std::vector<bool> outVec;
+    outVec.assign(v, v + bits - 1);
+    if (!compareView(outVec)) {
         throw "ABORT. Coins does not match.";
     }
-    return v;
+    return outVec;
 }
 
 bool Party::compareView(std::vector<bool> values){
@@ -239,11 +235,11 @@ std::vector<Party::triple> Party::perm(std::vector<triple> d) {
 
         //std::printf("%d ", partyNo);
         std::vector<bool> coins = coin(ceil(log2(j + 1)));
-        //std::printf("%d ", partyNo);
         unsigned int i = 0;
         for (const auto &c : coins) {
             i = i << 1u | c;
         }
+        //std::printf("%d ", i);
         std::swap(d[i], d[j]);
     }
     return d;
@@ -315,6 +311,7 @@ bool Party::verifyTripleWithOpening(Party::triple t) {
     bool a = open(t.a);
     bool b = open(t.b);
     bool c = open(t.c);
+    printf("%d %d %d \n", a,b,c);
     return c == (a & b);
 }
 
@@ -339,8 +336,8 @@ bool Party::compareView(std::pair<bool, bool> share) {
  * @return : True if the triple xyz is consistent. Else false.
  */
 bool Party::verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc) {
-    std::pair<bool, bool> rho = {xyz.a.first ^ abc.a.first, xyz.a.second ^ abc.a.second};
-    std::pair<bool, bool> sigma = {xyz.b.first ^ abc.b.first, xyz.b.second ^ abc.b.second};
+    std::pair<bool, bool> rho = std::make_pair(xyz.a.first ^ abc.a.first, xyz.a.second ^ abc.a.second);
+    std::pair<bool, bool> sigma = std::make_pair(xyz.b.first ^ abc.b.first, xyz.b.second ^ abc.b.second);
 
     bool rhoJ = open(rho);
     bool sigmaJ = open(sigma);
@@ -403,12 +400,12 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     int M = N * B + C;
 
     //random sharings
-    std::vector<std::pair<std::pair<bool, bool>, std::pair<bool, bool>>> randomSharings(2 * M);
+    std::vector<std::pair<std::pair<bool, bool>, std::pair<bool, bool>>> randomSharings;
     for (int i = 0; i < M; i += 2) {
-        randomSharings.emplace_back(std::pair<std::pair<bool, bool>, std::pair<bool, bool>>{rand(), rand()});
+        randomSharings.emplace_back(std::make_pair(rand(), rand()));
     }
     //semi-honest mult
-    std::vector<Party::triple> D(2 * M);
+    std::vector<Party::triple> D;
     for (int j = 0; j < M; ++j) {
         std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
         D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
@@ -425,7 +422,7 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     }
     D.erase(D.begin(), D.begin() + C); //Erase the triples that were used to check
     //(c)
-    std::vector<std::vector<Party::triple>> DBuckets(N);
+    std::vector<std::vector<Party::triple>> DBuckets;
     for (int l = 0; l < N; ++l) {
         for (int i = 0; i < B; ++i) {
             DBuckets[l].emplace_back(D.back());
@@ -434,10 +431,11 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     }
 
     //check-buckets
-    std::vector<Party::triple> d(N);
+    std::vector<Party::triple> d;
     for (int m = 0; m < N; ++m) {
         for (int i = 1; i < B; ++i) {
             if (!verifyTripleWithoutOpening(DBuckets[m][0], DBuckets[m][i])) {
+                std::printf("%d %d %d\n", i, m, B);
                 throw "ABORT. Triple verification without opening failed in cut-and-bucket";
             }
         }
