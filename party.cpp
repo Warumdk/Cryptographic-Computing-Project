@@ -311,7 +311,6 @@ bool Party::verifyTripleWithOpening(Party::triple t) {
     bool a = open(t.a);
     bool b = open(t.b);
     bool c = open(t.c);
-    printf("%d %d %d \n", a,b,c);
     return c == (a & b);
 }
 
@@ -422,10 +421,10 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     }
     D.erase(D.begin(), D.begin() + C); //Erase the triples that were used to check
     //(c)
-    std::vector<std::vector<Party::triple>> DBuckets;
+    std::vector<std::vector<Party::triple>> DBuckets(N);
     for (int l = 0; l < N; ++l) {
         for (int i = 0; i < B; ++i) {
-            DBuckets[l].emplace_back(D.back());
+            DBuckets.at(l).emplace_back(D.back());
             D.pop_back();
         }
     }
