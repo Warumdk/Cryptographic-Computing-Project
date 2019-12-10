@@ -19,10 +19,10 @@
 class Party {
 public:
     struct inArgs{
-        std::queue<bool> *ingoing;
-        std::queue<bool> *ingoingNext;
-        std::queue<bool> *outgoing;
-        std::queue<bool> *outgoingPrevious;
+        std::queue<std::pair<bool, int>> *ingoing;
+        std::queue<std::pair<bool, int>> *ingoingNext;
+        std::queue<std::pair<bool, int>> *outgoing;
+        std::queue<std::pair<bool, int>> *outgoingPrevious;
         std::mutex *inMtx;
         std::mutex *outMtx;
         std::condition_variable *inCv;
@@ -36,14 +36,15 @@ public:
     };
 
     //TODO: proper constructor signature
-    Party(int partyNo, int noOfAndGates, inArgs args, Circuit* circuit, std::vector<std::pair<bool, bool>> test);
+    Party(int partyNo, int noOfAndGates, inArgs &args, Circuit* circuit, std::vector<std::pair<bool, bool>> test);
 
-    bool sendToNext(bool v);
-    void sendToParty(int pid, bool v);
-    bool receiveFromParty(int pid);
+    std::pair<bool, int> sendToNext(bool v, int i);
+    void sendToParty(int pid, bool v, int i);
+    std::pair<bool, int> receiveFromParty(int pid);
     CryptoPP::SecByteBlock send();
     void receive(const CryptoPP::SecByteBlock correlatedKey);
     bool open(std::pair<bool, bool> share);
+    std::pair<bool, int> open(std::pair<bool, bool> share, int i);
 
     std::pair<bool, bool> secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u);
     bool cr1();
@@ -54,11 +55,12 @@ public:
     void evaluateCircuit();
     std::pair<int, bool> reconstruct(int pid, std::pair<bool, bool> share);
     bool compareView(bool val);
+    bool compareView(std::vector<bool> values);
     bool compareView(std::pair<bool, bool> share);
     std::pair<bool, bool> shareSecret(int pid, bool v);
     bool verifyTripleWithOpening(triple t);
     bool verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc);
-    std::vector<Party::triple> generateTriples(int N);
+    std::vector<Party::triple> generateTriples();
 
 
 private:
@@ -74,7 +76,7 @@ private:
     int noOfAndGates;
     Circuit* circuit;
     std::vector<std::pair<bool, bool>> testShares;
-    std::queue<bool> *out, *in;
+    std::queue<std::pair<bool, int>> *out, *in;
 
     CryptoPP::SecByteBlock *plainText;
     CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;

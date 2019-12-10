@@ -68,7 +68,7 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 
 int main() {
     auto *circuit = new Circuit("zero_equal.txt");
-    std::queue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
+    std::queue<std::pair<bool, int>> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     std::mutex  p1p2Mtx, p2p3Mtx, p3p1Mtx;
     std::condition_variable p1p2Cv, p2p3Cv, p3p1Cv;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
