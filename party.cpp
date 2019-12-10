@@ -9,10 +9,8 @@
 #include <fstream>
 #include <unistd.h>
 
-Party::Party(int partyNo, int noOfAndGates, inArgs &args, Circuit *circuit, std::vector<std::pair<bool, bool>> test) {
-
-    Party::testShares = test;
-
+Party::Party(int partyNo, int noOfAndGates, inArgs &args, Circuit *circuit, std::vector<bool> input) {
+    Party::input = input;
     Party::partyNo = partyNo;
     Party::circuit = circuit;
     Party::args = args;
@@ -33,56 +31,68 @@ Party::Party(int partyNo, int noOfAndGates, inArgs &args, Circuit *circuit, std:
 }
 
 void Party::evaluateCircuit() {
-    /*
-    std::ofstream file;
-    file.open(std::to_string(partyNo) + ".txt", std::ios::out | std::ios::app);
-    std::vector<bool> tmpres = coin(100000);
-    for (const auto &res : tmpres){
-        file << res << " ";
-    }
-    file.close();
-    */
-
-
-
-    Party::noOfAndGates = 100;
     try {
-        generateTriples();
+        auto d = generateTriples();
+        Circuit circuittmp = *Party::circuit;
+        auto gates = circuittmp.getGates();
+        auto wires = circuittmp.getWires();
+        std::vector<std::pair<bool, bool>> wireShares(wires.size());
+        wireShares.insert(wireShares.end(), wires.size(), {false, false});
 
-    } catch (const char *err) {
-        std::cout << err << std::endl;
+        for (int i = 0; i < 64; ++i) {
+            if(partyNo == 0){
+                wireShares.at(i) = shareSecret(0, input.at(i), i);
+            } else {
+                wireShares.at(i) = shareSecret(0, false, i);
+            }
+        }
+
+        for (int i = 0; i < 64; ++i) {
+            if(partyNo == 1){
+                wireShares.at(i+64) = shareSecret(1, input.at(i), i+64);
+            } else {
+                wireShares.at(i+64) = shareSecret(1, false, i+64);
+            }
+        }
+
+        int counter = 0;
+        std::vector<Party::triple> ands;
+        for (const auto &gate : gates){
+            if (gate.type == "XOR") {
+                wireShares[gate.output] = {wireShares[gate.inputA].first ^ wireShares[gate.inputB].first,
+                                           wireShares[gate.inputA].second ^ wireShares[gate.inputB].second};
+            } else if (gate.type == "AND") {
+                wireShares[gate.output] = secMultAnd(wireShares[gate.inputA], wireShares[gate.inputB], counter).first;
+                ands.push_back(Party::triple{wireShares[gate.inputA], wireShares[gate.inputB], wireShares[gate.output]});
+            } else if (gate.type == "INV") {
+                wireShares[gate.output] = {wireShares[gate.inputA].first, !wireShares[gate.inputA].second};
+            } else if (gate.type == "NOT") {
+                wireShares[gate.output] = {wireShares[gate.inputA].first, !wireShares[gate.inputA].second};
+            } else if (gate.type == "EQW") {
+                wireShares[gate.output] = {wireShares[gate.inputA].first, wireShares[gate.inputA].second};
+            }
+            counter++;
+        }
+        counter = 0;
+        for (const auto &andTriple : ands){
+            if(!verifyTripleWithoutOpening(andTriple, d.at(counter))){
+                throw "ABORT: Triple Verification Failed";
+            }
+            counter++;
+        }
+        std::vector<bool> finalOutput;
+        std::vector<std::pair<bool, bool>> result(wireShares.end() - 64, wireShares.end()); //TODO: exchange -1 with number of output wires
+        for (auto &res : result) {
+            auto tmp = reconstruct(0, res, -1);
+            if(tmp.first == 0) {
+                printf("%d", tmp.second);
+            }
+        }
+        printf("\n");
+
+    }catch (const char *err){
+        printf("%s\n", err);
     }
-
-/*
-Circuit circuittmp = *Party::circuit;
-auto gates = circuittmp.getGates();
-auto wires = circuittmp.getWires();
-std::vector<std::pair<bool, bool>> wireShares(wires.size());
-wireShares.insert(wireShares.end(), wires.size(), {false, true});
-
-for (const auto &gate : gates){
-    if (gate.type == "XOR") {
-        wireShares[gate.output] = {wireShares[gate.inputA].first ^ wireShares[gate.inputB].first,
-                                   wireShares[gate.inputA].second ^ wireShares[gate.inputB].second};
-    } else if (gate.type == "AND") {
-        wireShares[gate.output] = secMultAnd(wireShares[gate.inputA], wireShares[gate.inputB]);
-    } else if (gate.type == "INV") {
-        wireShares[gate.output] = {wireShares[gate.inputA].first, !wireShares[gate.inputA].second};
-    } else if (gate.type == "NOT") {
-        wireShares[gate.output] = {wireShares[gate.inputA].first, !wireShares[gate.inputA].second};
-    } else if (gate.type == "EQW") {
-        wireShares[gate.output] = {wireShares[gate.inputA].first, wireShares[gate.inputA].second};
-    }
-}
-std::vector<std::pair<bool, bool>> result(wireShares.end() - 1, wireShares.end()); //TODO: exchange -1 with number of output wires
-std::vector<bool> finalOutput(1);
-for (auto &res : result){
-    //finalOutput.emplace_back(open(res));
-    std::printf("%d\n", (bool) open(res));
-}
-*/
-
-
 }
 
 
@@ -187,7 +197,7 @@ std::pair<std::pair<bool, bool>, int> Party::secMultAnd(std::pair<bool, bool> v,
     bool r = (v.first & u.first) ^ (v.second & u.second) ^ crand;
     std::pair<bool, int> rPrevious = Party::sendToNext(r, i);
     bool e = r ^rPrevious.first;
-    printf("PartyNo%d: e:%d, r:%d, rp:%d, [t:%d,s:%d], [u:%d,w:%d], cr:%d\n", partyNo,e,r,rPrevious.first,v.first,v.second,u.first,u.second, crand);
+    //printf("PartyNo%d: e:%d, r:%d, rp:%d, [t:%d,s:%d], [u:%d,w:%d], cr:%d\n", partyNo,e,r,rPrevious.first,v.first,v.second,u.first,u.second, crand);
     return std::make_pair(std::make_pair(e, r), rPrevious.second);
 }
 
@@ -258,15 +268,15 @@ std::vector<Party::triple> Party::perm(std::vector<triple> d) {
  *          int=1 indicates the player is a sender (and thus the value can be ignored)
  *          exception indicates an abort.
  */
-std::pair<int, bool> Party::reconstruct(int pid, std::pair<bool, bool> share) {
+std::pair<int, bool> Party::reconstruct(int pid, std::pair<bool, bool> share, int i) {
     if (pid != Party::partyNo) {
-        sendToParty(pid, share.first, -1);
+        sendToParty(pid, share.first, i);
         return {1, false};
     } else {
-        bool tNext = receiveFromParty((Party::partyNo + 1) % 3).first;
-        bool tPrevious = receiveFromParty((3 + Party::partyNo - 1) % 3).first;
-        if (share.first == (tNext ^ tPrevious)) {
-            return {0, share.second ^ tPrevious};
+        auto tNext = receiveFromParty((Party::partyNo + 1) % 3);
+        auto tPrevious = receiveFromParty((3 + Party::partyNo - 1) % 3);
+        if (share.first == (tNext.first ^ tPrevious.first)) {
+            return {0, share.second ^ tPrevious.first};
         } else {
             throw "ABORT. Reconstruction failed. Shares do not match.";
         }
@@ -288,14 +298,14 @@ bool Party::compareView(bool val) {
  * @param v : The value (bool/bit) to be shared.
  * @return : Returns the share of the shared secret.
  */
-std::pair<bool, bool> Party::shareSecret(int pid, bool v) {
+std::pair<bool, bool> Party::shareSecret(int pid, bool v, int i) {
     std::pair<bool, bool> aShare = rand();
-    std::pair<int, bool> a = reconstruct(pid, aShare);
+    std::pair<int, bool> a = reconstruct(pid, aShare, i);
     bool b;
     if (a.first == 0) { //I am the one who shares
         b = a.second ^ v;
-        sendToParty((pid + 1) % 3, b, -1);
-        sendToParty((3 + (pid - 1)) % 3, b, -1);
+        sendToParty((pid + 1) % 3, b, i);
+        sendToParty((3 + (pid - 1)) % 3, b, i);
     } else {
         b = receiveFromParty(pid).first;
     }
@@ -413,7 +423,7 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     std::vector<Party::triple> D(randomSharings.size());
     for (int j = 0; j < M; ++j) {
         //std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
-        std::pair<std::pair<bool, bool>, int> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second, j);
+        std::pair<std::pair<bool, bool>, int> ciShare = secMultAnd(randomSharings.at(j).first, randomSharings.at(j).second, j);
         //printf("PartyNo%d: ")
         //D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
         D[ciShare.second] = Party::triple{randomSharings[ciShare.second].first, randomSharings[ciShare.second].second, ciShare.first};

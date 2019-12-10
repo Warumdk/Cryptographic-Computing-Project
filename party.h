@@ -36,7 +36,7 @@ public:
     };
 
     //TODO: proper constructor signature
-    Party(int partyNo, int noOfAndGates, inArgs &args, Circuit* circuit, std::vector<std::pair<bool, bool>> test);
+    Party(int partyNo, int noOfAndGates, inArgs &args, Circuit* circuit, std::vector<bool> input);
 
     std::pair<bool, int> sendToNext(bool v, int i);
     void sendToParty(int pid, bool v, int i);
@@ -53,11 +53,11 @@ public:
     std::vector<bool> coin(int bits);
     std::vector<triple> perm(std::vector<triple> d);
     void evaluateCircuit();
-    std::pair<int, bool> reconstruct(int pid, std::pair<bool, bool> share);
+    std::pair<int, bool> reconstruct(int pid, std::pair<bool, bool> share, int i);
     bool compareView(bool val);
     bool compareView(std::vector<bool> values);
     bool compareView(std::pair<bool, bool> share);
-    std::pair<bool, bool> shareSecret(int pid, bool v);
+    std::pair<bool, bool> shareSecret(int pid, bool v, int i);
     bool verifyTripleWithOpening(triple t);
     bool verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc);
     std::vector<Party::triple> generateTriples();
@@ -75,7 +75,7 @@ private:
     inArgs args;
     int noOfAndGates;
     Circuit* circuit;
-    std::vector<std::pair<bool, bool>> testShares;
+    std::vector<bool> input;
     std::queue<std::pair<bool, int>> *out, *in;
 
     CryptoPP::SecByteBlock *plainText;
