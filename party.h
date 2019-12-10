@@ -38,14 +38,11 @@ public:
     //TODO: proper constructor signature
     Party(int partyNo, int noOfAndGates, inArgs args, Circuit* circuit, std::vector<std::pair<bool, bool>> test);
 
-    //TODO: parametre er placeholders (ved ikke helt hvad de tager endnu)
-
     bool sendToNext(bool v);
     void sendToParty(int pid, bool v);
     bool receiveFromParty(int pid);
     CryptoPP::SecByteBlock send();
     void receive(const CryptoPP::SecByteBlock correlatedKey);
-    std::vector<int> compareview(std::vector<int>);
     bool open(std::pair<bool, bool> share);
 
     std::pair<bool, bool> secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u);
@@ -57,8 +54,11 @@ public:
     void evaluateCircuit();
     std::pair<int, bool> reconstruct(int pid, std::pair<bool, bool> share);
     bool compareView(bool val);
+    bool compareView(std::pair<bool, bool> share);
     std::pair<bool, bool> shareSecret(int pid, bool v);
     bool verifyTripleWithOpening(triple t);
+    bool verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc);
+    std::vector<Party::triple> generateTriples(int N);
 
 
 private:
@@ -73,8 +73,11 @@ private:
     inArgs args;
     int noOfAndGates;
     Circuit* circuit;
-    __int128_t ivIter;  //TODO: Ghetto fix
     std::vector<std::pair<bool, bool>> testShares;
     std::queue<bool> *out, *in;
+
+    CryptoPP::SecByteBlock *plainText;
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;
+    size_t messageLen;
 
 };

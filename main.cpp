@@ -67,7 +67,6 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 }
 
 int main() {
-
     auto *circuit = new Circuit("zero_equal.txt");
     std::queue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     std::mutex  p1p2Mtx, p2p3Mtx, p3p1Mtx;
@@ -82,14 +81,16 @@ int main() {
     std::vector<std::pair<bool, bool>> wireShares1(64);
     std::vector<std::pair<bool, bool>> wireShares2(64);
     std::vector<std::pair<bool, bool>> wireShares3(64);
-     /*
+
+    /*
     srand(time(0));
     for (int i = 0; i < 64; ++i) {
         wireShares1.push_back({rand() % 2, rand()% 2});
         wireShares2.push_back({rand() % 2, rand()% 2});
         wireShares3.push_back({rand() % 2, rand()% 2});
 
-    }*/
+    }
+     */
 
     Party p1(0, circuit->getNumberOfANDs(), args1, circuit, wireShares1);
     Party p2(1, circuit->getNumberOfANDs(), args2, circuit, wireShares2);
