@@ -43,6 +43,8 @@ void Party::evaluateCircuit() {
     file.close();
     */
 
+
+
     Party::noOfAndGates = 100;
     try {
         generateTriples();
@@ -163,8 +165,8 @@ std::pair<bool, bool> Party::cr2() {
     Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
     Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
 
-    bool lastBit = (*cipher.BytePtr()) & 1; // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1; //TODO Fix so it is viable for larger circuits.
+    bool lastBit = (*cipher.BytePtr()) & 1u; // Use ivIter to take the next bit in every call.
+    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1u; //TODO Fix so it is viable for larger circuits.
     return {lastBitPrevious, lastBit};
 }
 
@@ -180,11 +182,13 @@ bool Party::cr1() {
  * @return : pair (e,f)
  */
 //TODO check whether this protocol as described in section 2.2 is the same one used in the active version.
-std::pair<bool, bool> Party::secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u) {
-    bool r = (v.first & u.first) ^ (v.second & u.second) ^ cr1();
-    bool rPrevious = Party::sendToNext(r, -1).first;
-    bool e = r ^rPrevious;
-    return std::make_pair(e, r);
+std::pair<std::pair<bool, bool>, int> Party::secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u, int i) {
+    bool crand = cr1();
+    bool r = (v.first & u.first) ^ (v.second & u.second) ^ crand;
+    std::pair<bool, int> rPrevious = Party::sendToNext(r, i);
+    bool e = r ^rPrevious.first;
+    printf("PartyNo%d: e:%d, r:%d, rp:%d, [t:%d,s:%d], [u:%d,w:%d], cr:%d\n", partyNo,e,r,rPrevious.first,v.first,v.second,u.first,u.second, crand);
+    return std::make_pair(std::make_pair(e, r), rPrevious.second);
 }
 
 /**
@@ -307,10 +311,12 @@ std::pair<bool, bool> Party::shareSecret(int pid, bool v) {
  * @param t : The triple to verify.
  * @return : True if the triple is correct, else false (notice this does not throw an exception).
  */
+
 bool Party::verifyTripleWithOpening(Party::triple t) {
     bool a = open(t.a);
     bool b = open(t.b);
     bool c = open(t.c);
+    //printf("PartyNo%d: [%d,%d|%d,%d|%d,%d] opens to [%d,%d,%d]\n", partyNo, t.a.first, t.a.second, t.b.first, t.b.second,t.c.first, t.c.second,a,b,c);
     return c == (a & b);
 }
 
@@ -400,25 +406,29 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
 
     //random sharings
     std::vector<std::pair<std::pair<bool, bool>, std::pair<bool, bool>>> randomSharings;
-    for (int i = 0; i < M; i += 2) {
+    for (int i = 0; i < M; i++) {
         randomSharings.emplace_back(std::make_pair(rand(), rand()));
     }
     //semi-honest mult
-    std::vector<Party::triple> D;
+    std::vector<Party::triple> D(randomSharings.size());
     for (int j = 0; j < M; ++j) {
-        std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
-        D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
+        //std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
+        std::pair<std::pair<bool, bool>, int> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second, j);
+        //printf("PartyNo%d: ")
+        //D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
+        D[ciShare.second] = Party::triple{randomSharings[ciShare.second].first, randomSharings[ciShare.second].second, ciShare.first};
     }
 
     //Cut-and-Bucket
     //(a)
-    D = perm(D); //TODO fix
+    D = perm(D);
     //(b)
     for (int k = 0; k < C; ++k) {
         if (!verifyTripleWithOpening(D[k])) {
-            throw "ABORT. Triple verification failed in Cut-and-bucket";
+            throw "ABORT. Triple verification failed in Cut-and-bucket. ";
         }
     }
+
     D.erase(D.begin(), D.begin() + C); //Erase the triples that were used to check
     //(c)
     std::vector<std::vector<Party::triple>> DBuckets(N);

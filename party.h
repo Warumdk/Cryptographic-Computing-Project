@@ -46,7 +46,7 @@ public:
     bool open(std::pair<bool, bool> share);
     std::pair<bool, int> open(std::pair<bool, bool> share, int i);
 
-    std::pair<bool, bool> secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u);
+    std::pair<std::pair<bool, bool>, int> secMultAnd(std::pair<bool, bool> v, std::pair<bool, bool> u, int i);
     bool cr1();
     std::pair<bool, bool> cr2();
     std::pair<bool, bool> rand();
