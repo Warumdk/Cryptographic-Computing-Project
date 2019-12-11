@@ -68,14 +68,12 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 
 int main() {
     auto *circuit = new Circuit("adder64.txt");
-    std::queue<std::pair<bool, int>> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
-    std::mutex  p1p2Mtx, p2p3Mtx, p3p1Mtx;
-    std::condition_variable p1p2Cv, p2p3Cv, p3p1Cv;
+    moodycamel::BlockingReaderWriterQueue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
 
-    Party::inArgs args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue,  &p3p1Mtx, &p1p2Mtx, &p3p1Cv, &p1p2Cv};
-    Party::inArgs args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue, &p1p2Mtx, &p2p3Mtx, &p1p2Cv, &p2p3Cv};
-    Party::inArgs args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue, &p2p3Mtx, &p3p1Mtx, &p2p3Cv, &p3p1Cv};
+    Party::queues args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue};
+    Party::queues args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue};
+    Party::queues args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue};
 
 
 
