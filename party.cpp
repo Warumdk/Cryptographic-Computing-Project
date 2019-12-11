@@ -25,7 +25,7 @@ Party::Party(int partyNo, int noOfAndGates, queues &args, Circuit *circuit, std:
     Party::plainText = new CryptoPP::SecByteBlock(reinterpret_cast<const CryptoPP::byte *>(&Party::id[0]),
                                                   Party::id.size());
     Party::messageLen = Party::plainText->size() + 1;
-    Party::cbcEncryption = new CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption(key, key.size(),
+    Party::cbcEncryption = new CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption(key, key.size(),
                                                                              iv); //deterministic as IV=null
 
 }
@@ -100,7 +100,7 @@ CryptoPP::SecByteBlock Party::send() {
 
 void Party::receive(const CryptoPP::SecByteBlock correlatedKey) {
     Party::correlatedKey = correlatedKey;
-    Party::cbcEncryptionFromPrevious = new CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption(correlatedKey,
+    Party::cbcEncryptionFromPrevious = new CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption(correlatedKey,
                                                                                          correlatedKey.size(),
                                                                                          iv);
 }

@@ -96,7 +96,7 @@ private:
     std::queue<std::pair<bool, int>> *out, *in;
 
     CryptoPP::SecByteBlock *plainText;
-    CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;
+    CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;
     size_t messageLen;
 
 };
