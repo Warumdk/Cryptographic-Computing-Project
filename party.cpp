@@ -209,12 +209,11 @@ std::vector<Party::triple> Party::perm(std::vector<triple> d) {
     for (int j = 1; j < d.size(); ++j) {
 
         //std::printf("%d ", partyNo);
-        std::vector<bool> coins = coin(ceil(log2(j + 1)));
+        std::vector<bool> coins = coin(log2(j+1));
         unsigned int i = 0;
         for (const auto &c : coins) {
             i = i << 1u | c;
         }
-        //std::printf("%d ", i);
         std::swap(d[i], d[j]);
     }
     return d;
