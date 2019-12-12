@@ -237,7 +237,7 @@ std::pair<int, bool> Party::reconstruct(int pid, share v) {
         bool tNext = receiveFromParty((Party::partyNo + 1) % 3);
         bool tPrevious = receiveFromParty((3 + Party::partyNo - 1) % 3);
         if (v.t == (tNext ^ tPrevious)) {
-            return {0, v.t ^ tPrevious};
+            return {0, v.s ^ tPrevious};
         } else {
             throw "ABORT. Reconstruction failed. Shares do not match.";
         }
@@ -264,7 +264,7 @@ Party::share Party::shareSecret(int pid, bool v) {
     std::pair<int, bool> a = reconstruct(pid, aShare);
     bool b;
     if (a.first == 0) { //I am the one who shares
-        b = a.second ^ v;
+        b = a.second != v;
         sendToParty((pid + 1) % 3, b);
         sendToParty((3 + (pid - 1)) % 3, b);
     } else {
