@@ -69,11 +69,12 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 int main() {
     auto *circuit = new Circuit("50KANDs.txt");
     moodycamel::BlockingReaderWriterQueue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
+    moodycamel::BlockingReaderWriterQueue<std::string> p1p2, p2p3, p3p1;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
 
-    Party::queues args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue};
-    Party::queues args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue};
-    Party::queues args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue};
+    Party::queues args1 = {&p3p1Queue, &p2p1Queue, &p1p2Queue, &p1p3Queue, &p1p2, &p3p1};
+    Party::queues args2 = {&p1p2Queue, &p3p2Queue, &p2p3Queue, &p2p1Queue, &p2p3, &p1p2};
+    Party::queues args3 = {&p2p3Queue, &p1p3Queue, &p3p1Queue, &p3p2Queue, &p3p1, &p2p3};
 
 
 

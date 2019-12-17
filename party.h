@@ -24,6 +24,8 @@ public:
         moodycamel::BlockingReaderWriterQueue<bool> *receiveFromNext;
         moodycamel::BlockingReaderWriterQueue<bool> *sendToNext;
         moodycamel::BlockingReaderWriterQueue<bool> *sendToPrevious;
+        moodycamel::BlockingReaderWriterQueue<std::string> *sendHashToNext;
+        moodycamel::BlockingReaderWriterQueue<std::string> *receiveHashFromPrevious;
     };
 
     struct share{
@@ -74,11 +76,10 @@ public:
     void evaluateCircuit();
     std::pair<int, bool> reconstruct(int pid, share v);
     bool compareView(bool val);
-    bool compareView(std::vector<bool> values);
     bool compareView(share v);
     share shareSecret(int pid, bool v);
     bool verifyTripleWithOpening(triple t);
-    bool verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc);
+    share verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc);
     std::vector<Party::triple> generateTriples();
 
 
@@ -86,7 +87,6 @@ private:
     CryptoPP::AutoSeededRandomPool rnd;
     CryptoPP::SecByteBlock iv;
     CryptoPP::SecByteBlock key;
-    CryptoPP::SecByteBlock correlatedKey;
     std::string id;
     int partyNo;
     queues args;

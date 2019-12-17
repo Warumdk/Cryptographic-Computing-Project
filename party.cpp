@@ -32,11 +32,7 @@ Party::Party(int partyNo, int noOfAndGates, queues &args, Circuit *circuit, std:
 
 void Party::evaluateCircuit() {
     try {
-        auto then = std::chrono::high_resolution_clock::now();
         auto d = generateTriples();
-        auto now = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
-        std::cout << partyNo << " Triple: " << duration.count() << " ";
         Circuit circuittmp = *Party::circuit;
         auto gates = circuittmp.getGates();
         auto wires = circuittmp.getWires();
@@ -78,11 +74,22 @@ void Party::evaluateCircuit() {
             counter++;
         }
         counter = 0;
+        std::string view, viewNext;
         for (const auto &andTriple : ands){
-            if(!verifyTripleWithoutOpening(andTriple, d.at(counter))){
-                throw "ABORT: Triple Verification Failed";
-            }
+            share temp = verifyTripleWithoutOpening(andTriple, d.at(counter));
+            view += temp.s ? "1" : "0";
+            viewNext += temp.t ? "1" : "0";
             counter++;
+        }
+        CryptoPP::SHA256 hash;
+        std::string viewHash, nextViewHash;
+        CryptoPP::StringSource s1(view, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(viewHash)));
+        CryptoPP::StringSource s2(viewNext, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(nextViewHash)));
+        args.sendHashToNext->enqueue(nextViewHash);
+        std::string receivedHash;
+        args.receiveHashFromPrevious->wait_dequeue(receivedHash);
+        if (receivedHash != viewHash) {
+            throw "ABORT. Triple verification without opening failed in cut-and-bucket";
         }
 
         std::vector<share> result(wireShares.end() - 1, wireShares.end()); //TODO: exchange -1 with number of output wires#
@@ -104,7 +111,6 @@ CryptoPP::SecByteBlock Party::send() {
 }
 
 void Party::receive(const CryptoPP::SecByteBlock correlatedKey) {
-    Party::correlatedKey = correlatedKey;
     Party::cbcEncryptionFromPrevious = new CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption(correlatedKey,
                                                                                          correlatedKey.size(),
                                                                                          iv);
@@ -319,7 +325,7 @@ bool Party::compareView(share v) {
  * @param abc : The auxillary triple that is used to verify xyz.
  * @return : True if the triple xyz is consistent. Else false.
  */
-bool Party::verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc) {
+Party::share Party::verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc) {
     Party::share rho = share{xyz.a.t != abc.a.t, xyz.a.s != abc.a.s};
     Party::share sigma = share{xyz.b.t != abc.b.t, xyz.b.s != abc.b.s};
 
@@ -334,7 +340,7 @@ bool Party::verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc) {
     bool tmp3 = sigmaJ & rhoJ;
     Party::share tjsj = share{xyz.c.t != abc.c.t != tmp1.t != tmp2.t,
                                   xyz.c.s != abc.c.s != tmp1.s != tmp2.s != tmp3};
-    return compareView(tjsj);
+    return tjsj;
 }
 
 /**
@@ -388,11 +394,12 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
         randomSharings.emplace_back(std::make_pair(rand(), rand()));
     }
     //semi-honest mult
+
+
     std::vector<Party::triple> D(randomSharings.size());
     for (int j = 0; j < M; ++j) {
         //std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
-        share ciShare = secMultAnd(randomSharings.at(j).first,
-                                                                   randomSharings.at(j).second);
+        share ciShare = secMultAnd(randomSharings.at(j).first, randomSharings.at(j).second);
         //printf("PartyNo%d: ")
         //D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
         D[j] = Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare};
@@ -401,6 +408,8 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     //(a)
     D = perm(D);
     //(b)
+
+
     for (int k = 0; k < C; ++k) {
         if (!verifyTripleWithOpening(D[k])) {
             throw "ABORT. Triple verification failed in Cut-and-bucket. ";
@@ -416,18 +425,31 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
             D.pop_back();
         }
     }
-
+    auto then = std::chrono::high_resolution_clock::now();
     //check-buckets
     std::vector<Party::triple> d;
+    std::string view, viewNext;
     for (int m = 0; m < N; ++m) {
         for (int i = 1; i < B; ++i) {
-            if (!verifyTripleWithoutOpening(DBuckets[m][0], DBuckets[m][i])) {
-                std::printf("%d %d %d\n", i, m, B);
-                throw "ABORT. Triple verification without opening failed in cut-and-bucket";
-            }
+            share temp = verifyTripleWithoutOpening(DBuckets[m][0], DBuckets[m][i]);
+            view += temp.s ? "1" : "0";
+            viewNext += temp.t ? "1" : "0";
         }
         d.emplace_back(DBuckets[m][0]);
     }
+    CryptoPP::SHA256 hash;
+    std::string viewHash, nextViewHash;
+    CryptoPP::StringSource s1(view, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(viewHash)));
+    CryptoPP::StringSource s2(viewNext, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(nextViewHash)));
+    args.sendHashToNext->enqueue(nextViewHash);
+    std::string receivedHash;
+    args.receiveHashFromPrevious->wait_dequeue(receivedHash);
+    if (receivedHash != viewHash) {
+        throw "ABORT. Triple verification without opening failed in cut-and-bucket";
+    }
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+    std::cout << partyNo << " Triple: " << duration.count() << " ";
     return d;
 }
 
