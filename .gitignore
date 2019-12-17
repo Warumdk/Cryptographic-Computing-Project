@@ -71,3 +71,4 @@ fabric.properties
 
 lib
 include
+*..txt

@@ -98,5 +98,6 @@ private:
     CryptoPP::SecByteBlock *plainText;
     CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;
     size_t messageLen;
-
+    int bits = 0;
+    CryptoPP::SecByteBlock cipher, cipherPrevious;
 };

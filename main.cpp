@@ -5,10 +5,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
-#include <ctime>
 #include <cstdlib>
+#include <chrono>
 
-std::vector<bool> intToBoolVector(__int128 in, int bits){
+std::vector<bool> intToBoolVector(__int128_t in, int bits){
     std::vector<bool> temp;
     temp.reserve(bits);
     for (int i = 0; i < bits; ++i) {
@@ -67,7 +67,7 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 }
 
 int main() {
-    auto *circuit = new Circuit("adder64.txt");
+    auto *circuit = new Circuit("aes_256.txt");
     moodycamel::BlockingReaderWriterQueue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
 
@@ -77,14 +77,14 @@ int main() {
 
 
 
-    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, intToBoolVector(69, 64));
-    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, intToBoolVector(1337, 64));
-    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, {});
+    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, intToBoolVector(1231239812938, 128));
+    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, intToBoolVector(199912399521, 128));
+    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, intToBoolVector(133712312, 128));
 
     //Share keys
     fcrSetup(p1, p2, p3);
 
-
+    auto then = std::chrono::high_resolution_clock::now();
     std::thread t1(&Party::evaluateCircuit, &p1);
     std::thread t2(&Party::evaluateCircuit, &p2);
     std::thread t3(&Party::evaluateCircuit, &p3);
@@ -92,4 +92,7 @@ int main() {
     t1.join();
     t2.join();
     t3.join();
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+    std::cout << std::endl << duration.count();
 }

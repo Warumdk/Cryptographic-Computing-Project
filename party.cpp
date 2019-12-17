@@ -39,7 +39,7 @@ void Party::evaluateCircuit() {
         std::vector<share> wireShares;
         wireShares.insert(wireShares.end(), wires.size(), {false, false});
 
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < 128; ++i) {
             if(partyNo == 0){
                 wireShares.at(i) = shareSecret(0, input.at(i));
             } else {
@@ -47,11 +47,19 @@ void Party::evaluateCircuit() {
             }
         }
 
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < 128; ++i) {
             if(partyNo == 1){
-                wireShares.at(i+64) = shareSecret(1, input.at(i));
+                wireShares.at(i+128) = shareSecret(1, input.at(i));
             } else {
-                wireShares.at(i+64) = shareSecret(1, false);
+                wireShares.at(i+128) = shareSecret(1, false);
+            }
+        }
+
+        for (int i = 0; i < 128; ++i) {
+            if(partyNo == 1){
+                wireShares.at(i+256) = shareSecret(2, input.at(i));
+            } else {
+                wireShares.at(i+256) = shareSecret(2, false);
             }
         }
 
@@ -79,8 +87,8 @@ void Party::evaluateCircuit() {
             }
             counter++;
         }
-        std::vector<bool> finalOutput;
-        std::vector<share> result(wireShares.end() - 64, wireShares.end()); //TODO: exchange -1 with number of output wires
+
+        std::vector<share> result(wireShares.end() - 128, wireShares.end()); //TODO: exchange -1 with number of output wires#
         for (auto &res : result) {
             auto tmp = reconstruct(0, res);
             if(tmp.first == 0) {
@@ -137,15 +145,17 @@ bool Party::open(share v) {
 
 //Right now naively recomputes the AES every time a bit is needed for fcr1
 Party::share Party::cr2() {
-
-    CryptoPP::SecByteBlock cipher = CryptoPP::SecByteBlock(16);
-    CryptoPP::SecByteBlock cipherPrevious = CryptoPP::SecByteBlock(16);
+    if (bits == 0){
+    cipher = CryptoPP::SecByteBlock(16);
+    cipherPrevious = CryptoPP::SecByteBlock(16);
 
     Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
     Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
-
-    bool lastBit = (*cipher.BytePtr()) & 1u; // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1u; //TODO Fix so it is viable for larger circuits.
+    bits = 128;
+    }
+    bool lastBit = *cipher.BytePtr() << (128 - bits) != 0; // Use ivIter to take the next bit in every call.
+    bool lastBitPrevious = *cipherPrevious.BytePtr() << (128 - bits) != 0;
+    bits--;
     return {lastBitPrevious, lastBit};
 }
 
@@ -320,7 +330,6 @@ bool Party::verifyTripleWithoutOpening(Party::triple xyz, Party::triple abc) {
     if (!compareView(rhoJ) || !compareView(sigmaJ))
         throw "ABORT. Could not verify without opening. Views not equal.";
 
-    //TODO check if the following is correct
     Party::share tmp1 = share{sigmaJ && abc.a.t, sigmaJ && abc.a.s};
     Party::share tmp2 = share{rhoJ && abc.b.t, rhoJ && abc.b.s};
     bool tmp3 = sigmaJ & rhoJ;
@@ -367,7 +376,7 @@ std::pair<int, int> parameterSearch(int N) {
  * @return d : Vector of multiplication triples that are valid.
  */
 std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
-    int N = pow(2, ceil(log(Party::noOfAndGates) / log(2)));
+    int N = pow(2, ceil(log2(Party::noOfAndGates)));
     std::pair<int, int> best = parameterSearch(N);
     int B = best.first;
     int C = best.second;
@@ -389,10 +398,13 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
         //D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
         D[j] = Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare};
     }
-
     //Cut-and-Bucket
     //(a)
+    auto then = std::chrono::high_resolution_clock::now();
     D = perm(D);
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+    std::cout << partyNo << " Triple: " << duration.count() << " ";
     //(b)
     for (int k = 0; k < C; ++k) {
         if (!verifyTripleWithOpening(D[k])) {
