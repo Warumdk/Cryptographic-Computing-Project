@@ -32,14 +32,18 @@ Party::Party(int partyNo, int noOfAndGates, queues &args, Circuit *circuit, std:
 
 void Party::evaluateCircuit() {
     try {
+        auto then = std::chrono::high_resolution_clock::now();
         auto d = generateTriples();
+        auto now = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+        std::cout << partyNo << " Triple: " << duration.count() << " ";
         Circuit circuittmp = *Party::circuit;
         auto gates = circuittmp.getGates();
         auto wires = circuittmp.getWires();
         std::vector<share> wireShares;
         wireShares.insert(wireShares.end(), wires.size(), {false, false});
 
-        for (int i = 0; i < 128; ++i) {
+        for (int i = 0; i < 1; ++i) {
             if(partyNo == 0){
                 wireShares.at(i) = shareSecret(0, input.at(i));
             } else {
@@ -47,21 +51,14 @@ void Party::evaluateCircuit() {
             }
         }
 
-        for (int i = 0; i < 128; ++i) {
+        for (int i = 0; i < 1; ++i) {
             if(partyNo == 1){
-                wireShares.at(i+128) = shareSecret(1, input.at(i));
+                wireShares.at(i+1) = shareSecret(1, input.at(i));
             } else {
-                wireShares.at(i+128) = shareSecret(1, false);
+                wireShares.at(i+1) = shareSecret(1, false);
             }
         }
 
-        for (int i = 0; i < 128; ++i) {
-            if(partyNo == 1){
-                wireShares.at(i+256) = shareSecret(2, input.at(i));
-            } else {
-                wireShares.at(i+256) = shareSecret(2, false);
-            }
-        }
 
         int counter = 0;
         std::vector<Party::triple> ands;
@@ -88,7 +85,7 @@ void Party::evaluateCircuit() {
             counter++;
         }
 
-        std::vector<share> result(wireShares.end() - 128, wireShares.end()); //TODO: exchange -1 with number of output wires#
+        std::vector<share> result(wireShares.end() - 1, wireShares.end()); //TODO: exchange -1 with number of output wires#
         for (auto &res : result) {
             auto tmp = reconstruct(0, res);
             if(tmp.first == 0) {
@@ -145,17 +142,14 @@ bool Party::open(share v) {
 
 //Right now naively recomputes the AES every time a bit is needed for fcr1
 Party::share Party::cr2() {
-    if (bits == 0){
-    cipher = CryptoPP::SecByteBlock(16);
-    cipherPrevious = CryptoPP::SecByteBlock(16);
+    CryptoPP::SecByteBlock cipher = CryptoPP::SecByteBlock(16);
+    CryptoPP::SecByteBlock cipherPrevious = CryptoPP::SecByteBlock(16);
 
     Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
     Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
-    bits = 128;
-    }
-    bool lastBit = *cipher.BytePtr() << (128 - bits) != 0; // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = *cipherPrevious.BytePtr() << (128 - bits) != 0;
-    bits--;
+
+    bool lastBit = (*cipher.BytePtr()) & 1u; // Use ivIter to take the next bit in every call.
+    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1u; //TODO Fix so it is viable for larger circuits.
     return {lastBitPrevious, lastBit};
 }
 
@@ -216,15 +210,20 @@ std::vector<bool> Party::coin(int bits) {
 }
 
 std::vector<Party::triple> Party::perm(std::vector<triple> d) {
-    for (int j = 1; j < d.size(); ++j) {
-
-        //std::printf("%d ", partyNo);
-        std::vector<bool> coins = coin(log2(j+1));
-        unsigned int i = 0;
-        for (const auto &c : coins) {
-            i = i << 1u | c;
-        }
-        std::swap(d[i], d[j]);
+    std::string temp;
+    std::vector<bool> coins = coin(256);
+    for (const auto &c : coins) {
+        temp +=  c ? "1" : "0";
+    }
+    CryptoPP::SecByteBlock seed = CryptoPP::SecByteBlock(reinterpret_cast<const CryptoPP::byte *>(&temp[0]), temp.size());
+    CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption prng;
+    prng.SetKeyWithIV(seed, 32, seed+32, 16);
+    for (unsigned long j = 1; j < d.size(); ++j) {
+        CryptoPP::SecByteBlock t(log2(j));
+        prng.GenerateBlock(t, t.size());
+        CryptoPP::Integer i;
+        i.Decode(t.BytePtr(), t.SizeInBytes());
+        std::swap(d[i.ConvertToLong()% d.size()], d[j]);
     }
     return d;
 }
@@ -400,11 +399,7 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     }
     //Cut-and-Bucket
     //(a)
-    auto then = std::chrono::high_resolution_clock::now();
     D = perm(D);
-    auto now = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
-    std::cout << partyNo << " Triple: " << duration.count() << " ";
     //(b)
     for (int k = 0; k < C; ++k) {
         if (!verifyTripleWithOpening(D[k])) {
