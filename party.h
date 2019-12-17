@@ -93,9 +93,9 @@ private:
     int noOfAndGates;
     Circuit* circuit;
     std::vector<bool> input;
-    std::queue<std::pair<bool, int>> *out, *in;
 
     CryptoPP::SecByteBlock *plainText;
     CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption *cbcEncryption, *cbcEncryptionFromPrevious;
     size_t messageLen;
+    int bits = 128;
 };

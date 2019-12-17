@@ -148,14 +148,20 @@ bool Party::open(share v) {
 
 //Right now naively recomputes the AES every time a bit is needed for fcr1
 Party::share Party::cr2() {
-    CryptoPP::SecByteBlock cipher = CryptoPP::SecByteBlock(16);
-    CryptoPP::SecByteBlock cipherPrevious = CryptoPP::SecByteBlock(16);
+    CryptoPP::Integer i, j;
+    if (bits == 128) {
+        CryptoPP::SecByteBlock cipher = CryptoPP::SecByteBlock(16);
+        CryptoPP::SecByteBlock cipherPrevious = CryptoPP::SecByteBlock(16);
 
-    Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
-    Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
-
-    bool lastBit = (*cipher.BytePtr()) & 1u; // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = (*cipherPrevious.BytePtr()) & 1u; //TODO Fix so it is viable for larger circuits.
+        Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
+        Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
+        i.Decode(cipher.BytePtr(), cipher.SizeInBytes());
+        j.Decode(cipherPrevious.BytePtr(), cipherPrevious.SizeInBytes());
+        bits = 0;
+    }
+    bool lastBit = i.GetBit(bits); // Use ivIter to take the next bit in every call.
+    bool lastBitPrevious = j.GetBit(bits); //TODO Fix so it is viable for larger circuits.
+    bits++;
     return {lastBitPrevious, lastBit};
 }
 
