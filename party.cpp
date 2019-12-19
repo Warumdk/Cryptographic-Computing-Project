@@ -39,19 +39,11 @@ void Party::evaluateCircuit() {
         std::vector<share> wireShares;
         wireShares.insert(wireShares.end(), wires.size(), {false, false});
 
-        for (int i = 0; i < 1; ++i) {
+        for (int i = 0; i < 64; ++i) {
             if(partyNo == 0){
                 wireShares.at(i) = shareSecret(0, input.at(i));
             } else {
                 wireShares.at(i) = shareSecret(0, false);
-            }
-        }
-
-        for (int i = 0; i < 1; ++i) {
-            if(partyNo == 1){
-                wireShares.at(i+1) = shareSecret(1, input.at(i));
-            } else {
-                wireShares.at(i+1) = shareSecret(1, false);
             }
         }
 
@@ -92,7 +84,7 @@ void Party::evaluateCircuit() {
             throw "ABORT. Triple verification without opening failed in cut-and-bucket";
         }
 
-        std::vector<share> result(wireShares.end() - 1, wireShares.end()); //TODO: exchange -1 with number of output wires#
+        std::vector<share> result(wireShares.end() - 128, wireShares.end()); //TODO: exchange -1 with number of output wires#
         for (auto &res : result) {
             auto tmp = reconstruct(0, res);
             if(tmp.first == 0) {
@@ -148,19 +140,18 @@ bool Party::open(share v) {
 
 //Right now naively recomputes the AES every time a bit is needed for fcr1
 Party::share Party::cr2() {
-    CryptoPP::Integer i, j;
     if (bits == 128) {
         CryptoPP::SecByteBlock cipher = CryptoPP::SecByteBlock(16);
         CryptoPP::SecByteBlock cipherPrevious = CryptoPP::SecByteBlock(16);
 
         Party::cbcEncryption->ProcessData(cipher, *Party::plainText, Party::messageLen);
         Party::cbcEncryptionFromPrevious->ProcessData(cipherPrevious, *Party::plainText, Party::messageLen);
-        i.Decode(cipher.BytePtr(), cipher.SizeInBytes());
-        j.Decode(cipherPrevious.BytePtr(), cipherPrevious.SizeInBytes());
+        ci.Decode(cipher.BytePtr(), cipher.SizeInBytes());
+        cj.Decode(cipherPrevious.BytePtr(), cipherPrevious.SizeInBytes());
         bits = 0;
     }
-    bool lastBit = i.GetBit(bits); // Use ivIter to take the next bit in every call.
-    bool lastBitPrevious = j.GetBit(bits); //TODO Fix so it is viable for larger circuits.
+    bool lastBit = ci.GetBit(bits);
+    bool lastBitPrevious = cj.GetBit(bits);
     bits++;
     return {lastBitPrevious, lastBit};
 }
@@ -182,7 +173,6 @@ Party::share Party::secMultAnd(share v, share u) {
     bool r = (v.t && u.t) != (v.s && u.s) != crand;
     bool rPrevious = Party::sendToNext(r);
     bool e = r ^rPrevious;
-    //printf("PartyNo%d: e:%d, r:%d, rp:%d, [t:%d,s:%d], [u:%d,w:%d], cr:%d\n", partyNo,e,r,rPrevious.first,v.first,v.second,u.first,u.second, crand);
     return share{e, r};
 }
 
@@ -391,7 +381,7 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     std::pair<int, int> best = parameterSearch(N);
     int B = best.first;
     int C = best.second;
-
+    printf("%f", (B-1)*log2(C));
     int M = N * B + C;
 
     //random sharings
@@ -399,22 +389,14 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     for (int i = 0; i < M; i++) {
         randomSharings.emplace_back(std::make_pair(rand(), rand()));
     }
+
     //semi-honest mult
-
-
     std::vector<Party::triple> D(randomSharings.size());
     for (int j = 0; j < M; ++j) {
-        //std::pair<bool, bool> ciShare = secMultAnd(randomSharings[j].first, randomSharings[j].second);
         share ciShare = secMultAnd(randomSharings.at(j).first, randomSharings.at(j).second);
-        //printf("PartyNo%d: ")
-        //D.emplace_back(Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare});
         D[j] = Party::triple{randomSharings[j].first, randomSharings[j].second, ciShare};
     }
-    //Cut-and-Bucket
-    //(a)
     D = perm(D);
-    //(b)
-
 
     for (int k = 0; k < C; ++k) {
         if (!verifyTripleWithOpening(D[k])) {
@@ -431,8 +413,8 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
             D.pop_back();
         }
     }
-    auto then = std::chrono::high_resolution_clock::now();
     //check-buckets
+    auto then = std::chrono::high_resolution_clock::now();
     std::vector<Party::triple> d;
     std::string view, viewNext;
     for (int m = 0; m < N; ++m) {
@@ -443,6 +425,9 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
         }
         d.emplace_back(DBuckets[m][0]);
     }
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+    std::cout << partyNo << " Triple: " << duration.count() << " ";
     CryptoPP::SHA256 hash;
     std::string viewHash, nextViewHash;
     CryptoPP::StringSource s1(view, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(viewHash)));
@@ -453,9 +438,7 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
     if (receivedHash != viewHash) {
         throw "ABORT. Triple verification without opening failed in cut-and-bucket";
     }
-    auto now = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
-    std::cout << partyNo << " Triple: " << duration.count() << " ";
+
     return d;
 }
 
