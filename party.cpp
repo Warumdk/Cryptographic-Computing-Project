@@ -3,7 +3,7 @@
 //
 
 #include "party.h"
-#include <math.h>
+#include <cmath>
 #include <ctime>
 #include <exception>
 #include <fstream>
@@ -32,18 +32,41 @@ Party::Party(int partyNo, int noOfAndGates, queues &args, Circuit *circuit, std:
 
 void Party::evaluateCircuit() {
     try {
+
+        auto then = std::chrono::high_resolution_clock::now();
         auto d = generateTriples();
+
+        auto now = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+        std::cout << partyNo << " Triple: " << duration.count() << " ";
+
         Circuit circuittmp = *Party::circuit;
         auto gates = circuittmp.getGates();
         auto wires = circuittmp.getWires();
         std::vector<share> wireShares;
         wireShares.insert(wireShares.end(), wires.size(), {false, false});
 
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < 128; ++i) {
             if(partyNo == 0){
                 wireShares.at(i) = shareSecret(0, input.at(i));
             } else {
                 wireShares.at(i) = shareSecret(0, false);
+            }
+        }
+
+        for (int i = 0; i < 128; ++i) {
+            if(partyNo == 1){
+                wireShares.at(i+128) = shareSecret(1, input.at(i));
+            } else {
+                wireShares.at(i+128) = shareSecret(1, false);
+            }
+        }
+
+        for (int i = 0; i < 128; ++i) {
+            if(partyNo == 2){
+                wireShares.at(i+256) = shareSecret(2, input.at(i));
+            } else {
+                wireShares.at(i+256) = shareSecret(2, false);
             }
         }
 
@@ -219,7 +242,7 @@ std::vector<Party::triple> Party::perm(std::vector<triple> d) {
     }
     CryptoPP::SecByteBlock seed = CryptoPP::SecByteBlock(reinterpret_cast<const CryptoPP::byte *>(&temp[0]), temp.size());
     CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption prng;
-    prng.SetKeyWithIV(seed, 32, seed+32, 16);
+    prng.SetKeyWithIV(seed, 16, seed+16, 16);
     for (unsigned long j = 1; j < d.size(); ++j) {
         CryptoPP::SecByteBlock t(log2(j));
         prng.GenerateBlock(t, t.size());
@@ -370,6 +393,17 @@ std::pair<int, int> parameterSearch(int N) {
     return {bestB, bestC};
 }
 
+int improvedParamSearch(int N){
+    int sigma = 80;
+    int B = 1;
+    double result = 0;
+    do {
+        result = log2(exp(lgamma(N * B + B) - (log(N) + lgamma(B) + lgamma(N * B))));
+        B ++;
+    }while (result < sigma);
+    return B-1;
+}
+
 //TODO: Check that this works
 /**
  * Generates multiplication triples that are verified to be valid.
@@ -377,13 +411,11 @@ std::pair<int, int> parameterSearch(int N) {
  * @return d : Vector of multiplication triples that are valid.
  */
 std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
-    int N = pow(2, ceil(log2(Party::noOfAndGates)));
-    std::pair<int, int> best = parameterSearch(N);
-    int B = best.first;
-    int C = best.second;
-    printf("%f", (B-1)*log2(C));
-    int M = N * B + C;
 
+    int N = Party::noOfAndGates;
+    int B = improvedParamSearch(N);
+    int C = B;
+    int M = N * B + C;
     //random sharings
     std::vector<std::pair<share, share>> randomSharings;
     for (int i = 0; i < M; i++) {
@@ -414,7 +446,6 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
         }
     }
     //check-buckets
-    auto then = std::chrono::high_resolution_clock::now();
     std::vector<Party::triple> d;
     std::string view, viewNext;
     for (int m = 0; m < N; ++m) {
@@ -425,9 +456,6 @@ std::vector<Party::triple> Party::generateTriples() { //N = number of AND-gates.
         }
         d.emplace_back(DBuckets[m][0]);
     }
-    auto now = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
-    std::cout << partyNo << " Triple: " << duration.count() << " ";
     CryptoPP::SHA256 hash;
     std::string viewHash, nextViewHash;
     CryptoPP::StringSource s1(view, true, new CryptoPP::HashFilter(hash, new CryptoPP::StringSink(viewHash)));
