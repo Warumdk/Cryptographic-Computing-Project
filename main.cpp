@@ -8,11 +8,11 @@
 #include <cstdlib>
 #include <chrono>
 
-std::vector<bool> intToBoolVector(__int128_t in, int bits){
+std::vector<bool> intToBoolVector(unsigned __int128 in, int bits){
     std::vector<bool> temp;
     temp.reserve(bits);
-    for (int i = 0; i < bits; ++i) {
-        temp.push_back((in >> i) & 1);
+    for (unsigned int i = 0; i < bits; ++i) {
+        temp.push_back((in >> i) != 0);
     }
     return temp;
 }
@@ -67,7 +67,7 @@ void fcrSetup(Party &p1, Party &p2, Party &p3){
 }
 
 int main() {
-    auto *circuit = new Circuit("50KANDs.txt");
+    auto *circuit = new Circuit("AES_256.txt");
     moodycamel::BlockingReaderWriterQueue<bool> p1p2Queue, p2p3Queue, p3p1Queue, p1p3Queue, p2p1Queue, p3p2Queue;
     moodycamel::BlockingReaderWriterQueue<std::string> p1p2, p2p3, p3p1;
     //CryptoPP::byte id[] = "AGLtdP9NzXOYUGbb";
@@ -78,9 +78,9 @@ int main() {
 
 
 
-    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, intToBoolVector(1, 1));
-    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, intToBoolVector(0, 1));
-    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, {});
+    Party p1(0, circuit->getNumberOfANDs(), args1, circuit, intToBoolVector(1918239313898193121236632432293412738, 128));
+    Party p2(1, circuit->getNumberOfANDs(), args2, circuit, intToBoolVector(191823931389819399177236632432293412738, 128));
+    Party p3(2, circuit->getNumberOfANDs(), args3, circuit, intToBoolVector(1918239313898193991772366324388612738, 128));
 
     //Share keys
     fcrSetup(p1, p2, p3);
