@@ -1,5 +1,5 @@
 //
-// Created by czn on 29/11/2019.
+// Created by czn on 23/11/2019.
 //
 
 #include "party.h"
@@ -26,7 +26,7 @@ Party::Party(int partyNo, int noOfAndGates, queues &args, Circuit *circuit, std:
                                                   Party::id.size());
     Party::messageLen = Party::plainText->size() + 1;
     Party::cbcEncryption = new CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption(key, key.size(),
-                                                                             iv); //deterministic as IV=null
+                                                                             iv);
 
 }
 
@@ -107,7 +107,7 @@ void Party::evaluateCircuit() {
             throw "ABORT. Triple verification without opening failed in cut-and-bucket";
         }
 
-        std::vector<share> result(wireShares.end() - 128, wireShares.end()); //TODO: exchange -1 with number of output wires#
+        std::vector<share> result(wireShares.end() - 128, wireShares.end());
         for (auto &res : result) {
             auto tmp = reconstruct(0, res);
             if(tmp.first == 0) {
@@ -190,7 +190,7 @@ bool Party::cr1() {
  * @param u : share of second value (u,w)
  * @return : pair (e,f)
  */
-//TODO check whether this protocol as described in section 2.2 is the same one used in the active version.
+
 Party::share Party::secMultAnd(share v, share u) {
     bool crand = cr1();
     bool r = (v.t && u.t) != (v.s && u.s) != crand;
@@ -309,7 +309,6 @@ Party::share Party::shareSecret(int pid, bool v) {
     return aShare^b; // XOR by constant
 }
 
-//TODO: Test if this works correctly.
 /**
  * Verifies a triple by opening them.
  * @param t : The triple to verify.
@@ -320,11 +319,9 @@ bool Party::verifyTripleWithOpening(Party::triple t) {
     bool a = open(t.a);
     bool b = open(t.b);
     bool c = open(t.c);
-    //printf("PartyNo%d: [%d,%d|%d,%d|%d,%d] opens to [%d,%d,%d]\n", partyNo, t.a.first, t.a.second, t.b.first, t.b.second,t.c.first, t.c.second,a,b,c);
     return c == (a & b);
 }
 
-//TODO: Test if this works correctly (most likely does).
 /**
  * The parties send the first part of a share and compares the received part with the second part of its own share.
  * @param v : the share to compare with the other parties.
@@ -335,8 +332,6 @@ bool Party::compareView(share v) {
     return v.s == receivedVal;
 }
 
-
-//TODO: Test if this works correctly.
 /**
  * Verifies that a triple is generated correctly without opening it. It does so by using another intermediate triple.
  * This is used for the cut-and-choose method when generating triples to verify security.
@@ -404,7 +399,6 @@ int improvedParamSearch(int N){
     return B-1;
 }
 
-//TODO: Check that this works
 /**
  * Generates multiplication triples that are verified to be valid.
  * @param noOfAndGates : Number of AND-gates in the circuit.
